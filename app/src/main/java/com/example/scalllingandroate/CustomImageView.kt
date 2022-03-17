@@ -9,13 +9,15 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.FrameLayout
 import android.widget.ImageView
 import androidx.core.content.ContextCompat
 
-
 class CustomImageView @JvmOverloads constructor(
-    context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
+    context: Context,
+    attrs: AttributeSet? = null,
+    defStyleAttr: Int = 0,
 ) : FrameLayout(context, attrs, defStyleAttr) {
 
     private var rootLayout: View
@@ -35,6 +37,9 @@ class CustomImageView @JvmOverloads constructor(
     private var yCoOrdinate = 0f
     var imageView: ImageView
     var rootLayoutSticker: FrameLayout
+    var callBack: CustomImageCallBack? = null
+    var exactBitmap: Bitmap? = null
+    var flip = 0
 
     init {
         val mInflater =
@@ -47,7 +52,7 @@ class CustomImageView @JvmOverloads constructor(
             true
         })
 
-        //hideBorder()
+        hideBorder()
     }
 
     fun setBitMap(bitmap: Bitmap?) {
@@ -66,10 +71,70 @@ class CustomImageView @JvmOverloads constructor(
             ContextCompat.getDrawable(context, R.drawable.shape_black_border)
     }
 
+    fun setImagePath(imagePath: String) {
+        exactBitmap = Util.scaleDown(Util.getBitmapOrg(imagePath), 1080f, true)
+        if (exactBitmap != null) {
+            this.imageView.alpha = 0.5f
+            this.imageView.setImageBitmap(exactBitmap)
+        }
+    }
+
+    fun updateCallBack(callBackClick: CustomImageCallBack) {
+        callBack = callBackClick
+    }
+
+    fun deleteObject() {
+        if (this@CustomImageView.parent != null) {
+            val myCanvas = this@CustomImageView.parent as ViewGroup
+            myCanvas.removeView(this@CustomImageView)
+            this@CustomImageView.imageView.setImageDrawable(null)
+            this@CustomImageView.imageView.setImageBitmap(null)
+            this@CustomImageView.imageView.destroyDrawingCache()
+            if (exactBitmap != null) {
+                exactBitmap!!.recycle()
+                exactBitmap = null
+            }
+            Util.clearGarbageCollection()
+            callBack?.stickerViewDeleteClick()
+        }
+    }
+
+    fun flipRoot() {
+        if (flip % 2 == 0) {
+            imageView.scaleX = -1f
+            flip++
+        } else {
+            flip++
+            imageView.scaleX = 1f
+        }
+
+    }
+
+    fun disableAllOthers() {
+        if (this@CustomImageView.parent != null) {
+            val myViewGroup = this@CustomImageView.parent as ViewGroup
+            for (i in 0 until myViewGroup.childCount) {
+                if (myViewGroup.getChildAt(i) is CustomImageView) {
+                    (myViewGroup.getChildAt(i) as CustomImageView).setControlItemsHidden(true)
+                }
+            }
+        }
+    }
+
+    private fun setControlItemsHidden(isHidden: Boolean) {
+        if (isHidden) {
+            hideBorder()
+        } else {
+            showBorder()
+        }
+    }
+
     private fun viewTransformation(view: View, event: MotionEvent) {
         when (event.action and MotionEvent.ACTION_MASK) {
             MotionEvent.ACTION_DOWN -> {
-                showBorder()
+
+                callBack?.stickerViewClickDown(this@CustomImageView)
+
                 xCoOrdinate = view.x - event.rawX
                 yCoOrdinate = view.y - event.rawY
                 start.set(event.x, event.y)
@@ -116,7 +181,7 @@ class CustomImageView @JvmOverloads constructor(
                 lastEvent = null
             }
             MotionEvent.ACTION_MOVE -> if (!isOutSide) {
-                hideBorder()
+                setControlItemsHidden(false)
                 if (mode == DRAG) {
                     isZoomAndRotate = false
                     view.animate().x(event.rawX + xCoOrdinate).y(event.rawY + yCoOrdinate)
@@ -139,7 +204,6 @@ class CustomImageView @JvmOverloads constructor(
                 }
             }
 
-
         }
     }
 
@@ -160,5 +224,12 @@ class CustomImageView @JvmOverloads constructor(
         val x = event.getX(0) + event.getX(1)
         val y = event.getY(0) + event.getY(1)
         point[x / 2] = y / 2
+    }
+
+    interface CustomImageCallBack {
+        fun stickerViewClickDown(currentView: View?)
+        fun stickerViewDeleteClick()
+        fun stickerViewScrollViewEnable()
+        fun stickerViewScrollViewDisable()
     }
 }
